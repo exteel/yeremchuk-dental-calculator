@@ -6,6 +6,29 @@ import 'package:yeremchuk_dental_calculator/calculator/data/service_catalog.dart
 void main() {
   const engine = PricingEngine();
 
+  group('existing implant, needs a crown — ТЗ §4.5', () {
+    test('the only adjustable dimension is the crown tier, and it '
+        'actually changes the crown price', () {
+      final base = engine.existingImplantTotal(
+        city: ServiceCity.ivanoFrankivsk,
+        group: ImplantGroup.premium,
+        crown: ServiceCatalog.crownTiers[0], // base
+      );
+      final premium = engine.existingImplantTotal(
+        city: ServiceCity.ivanoFrankivsk,
+        group: ImplantGroup.premium,
+        crown: ServiceCatalog.crownTiers[2], // premium
+      );
+      expect(base.secondaryTierLabel, 'Рівень коронки');
+      expect(base.primaryTierLabel, isEmpty);
+      expect(
+        premium.eurAmount - base.eurAmount,
+        ServiceCatalog.crownPrem.priceFor(ServiceCity.ivanoFrankivsk)!.amount -
+            ServiceCatalog.crownBase.priceFor(ServiceCity.ivanoFrankivsk)!.amount,
+      );
+    });
+  });
+
   group('single tooth — worked examples from ТЗ §4.2', () {
     test('Івано-Франківськ: rational/optimal/premium match the ТЗ table', () {
       final rational = engine.unitScenario(

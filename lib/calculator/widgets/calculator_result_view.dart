@@ -16,9 +16,13 @@ class CalculatorResultView extends StatefulWidget {
     required this.result,
     required this.city,
     required this.archSize,
+    required this.primaryTierIndex,
+    required this.secondaryTierIndex,
     required this.phoneSubmitted,
     required this.consultationSubmitting,
     required this.consultationRequested,
+    required this.canGoBack,
+    required this.onBack,
     required this.onPrimaryTierChanged,
     required this.onSecondaryTierChanged,
     required this.onArchSizeChanged,
@@ -30,9 +34,13 @@ class CalculatorResultView extends StatefulWidget {
   final CalculatorResult result;
   final ServiceCity city;
   final int archSize;
+  final int primaryTierIndex;
+  final int secondaryTierIndex;
   final bool phoneSubmitted;
   final bool consultationSubmitting;
   final bool consultationRequested;
+  final bool canGoBack;
+  final VoidCallback onBack;
   final ValueChanged<int> onPrimaryTierChanged;
   final ValueChanged<int> onSecondaryTierChanged;
   final ValueChanged<int> onArchSizeChanged;
@@ -59,7 +67,15 @@ class _CalculatorResultViewState extends State<CalculatorResultView> {
     if (result.isIndividualOnly) {
       return _IndividualResult(
         result: result,
-        onConsult: widget.onRequestConsultation,
+        phoneController: _phoneController,
+        isSubmitting: widget.consultationSubmitting,
+        isRequested: widget.consultationRequested,
+        canGoBack: widget.canGoBack,
+        onBack: widget.onBack,
+        onConsult: () {
+          widget.onSubmitPhone(_phoneController.text);
+          widget.onRequestConsultation();
+        },
       );
     }
 
@@ -69,6 +85,18 @@ class _CalculatorResultViewState extends State<CalculatorResultView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (widget.canGoBack) ...[
+            TextButton.icon(
+              onPressed: widget.onBack,
+              icon: const Icon(Icons.arrow_back, size: 18),
+              label: const Text('Назад'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.muted,
+                padding: EdgeInsets.zero,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
           if (result.isRoughEstimate)
             Container(
               padding: const EdgeInsets.all(AppSpacing.md),
@@ -109,16 +137,20 @@ class _CalculatorResultViewState extends State<CalculatorResultView> {
             const SizedBox(height: AppSpacing.lg),
           ],
 
-          _TierChips(
-            label: result.primaryTierLabel,
-            options: const ['Раціональний', 'Оптимальний', 'Преміальний'],
-            onSelected: widget.onPrimaryTierChanged,
-          ),
-          const SizedBox(height: AppSpacing.md),
+          if (result.primaryTierLabel.isNotEmpty) ...[
+            _TierChips(
+              label: result.primaryTierLabel,
+              options: const ['Раціональний', 'Оптимальний', 'Преміальний'],
+              selectedIndex: widget.primaryTierIndex,
+              onSelected: widget.onPrimaryTierChanged,
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
           if (result.secondaryTierLabel.isNotEmpty)
             _TierChips(
               label: result.secondaryTierLabel,
               options: const ['Базовий', 'Оптимальний', 'Преміальний'],
+              selectedIndex: widget.secondaryTierIndex,
               onSelected: widget.onSecondaryTierChanged,
             ),
 
@@ -220,11 +252,13 @@ class _TierChips extends StatelessWidget {
   const _TierChips({
     required this.label,
     required this.options,
+    required this.selectedIndex,
     required this.onSelected,
   });
 
   final String label;
   final List<String> options;
+  final int selectedIndex;
   final ValueChanged<int> onSelected;
 
   @override
@@ -245,7 +279,7 @@ class _TierChips extends StatelessWidget {
             for (var i = 0; i < options.length; i++)
               ChoiceChip(
                 label: Text(options[i]),
-                selected: false,
+                selected: i == selectedIndex,
                 onSelected: (_) => onSelected(i),
               ),
           ],
@@ -604,9 +638,22 @@ class _ComboCards extends StatelessWidget {
 }
 
 class _IndividualResult extends StatelessWidget {
-  const _IndividualResult({required this.result, required this.onConsult});
+  const _IndividualResult({
+    required this.result,
+    required this.phoneController,
+    required this.isSubmitting,
+    required this.isRequested,
+    required this.canGoBack,
+    required this.onBack,
+    required this.onConsult,
+  });
 
   final CalculatorResult result;
+  final TextEditingController phoneController;
+  final bool isSubmitting;
+  final bool isRequested;
+  final bool canGoBack;
+  final VoidCallback onBack;
   final VoidCallback onConsult;
 
   @override
@@ -617,23 +664,64 @@ class _IndividualResult extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (canGoBack) ...[
+            TextButton.icon(
+              onPressed: onBack,
+              icon: const Icon(Icons.arrow_back, size: 18),
+              label: const Text('Назад'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.muted,
+                padding: EdgeInsets.zero,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
           Text(
             result.individualMessage ?? '',
             style: Theme.of(
               context,
             ).textTheme.headlineSmall?.copyWith(color: AppColors.ink),
           ),
-          const SizedBox(height: AppSpacing.xl),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: onConsult,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-              ),
-              child: Text(result.individualCta ?? 'Записатися'),
+          const SizedBox(height: AppSpacing.lg),
+          if (!isRequested) ...[
+            TextField(
+              controller: phoneController,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(labelText: 'Номер телефону'),
             ),
-          ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+          if (isRequested)
+            const _ConsultationConfirmed()
+          else
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: phoneController,
+              builder: (context, value, _) {
+                final canSubmit =
+                    !isSubmitting && value.text.trim().length >= 7;
+                return SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: canSubmit ? onConsult : null,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: AppSpacing.md,
+                      ),
+                    ),
+                    child: isSubmitting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(result.individualCta ?? 'Записатися'),
+                  ),
+                );
+              },
+            ),
         ],
       ),
     );

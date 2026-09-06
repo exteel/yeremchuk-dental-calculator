@@ -301,8 +301,8 @@ class PricingEngine {
           ),
         ],
         combos: const [],
-        primaryTierLabel: 'Рівень коронки',
-        secondaryTierLabel: '',
+        primaryTierLabel: '',
+        secondaryTierLabel: 'Рівень коронки',
       );
     }
 
@@ -333,8 +333,8 @@ class PricingEngine {
         ),
       ],
       combos: const [],
-      primaryTierLabel: 'Рівень коронки',
-      secondaryTierLabel: '',
+      primaryTierLabel: '',
+      secondaryTierLabel: 'Рівень коронки',
     );
   }
 

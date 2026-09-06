@@ -72,6 +72,23 @@ void main() {
     );
 
     blocTest<ImplantCalculatorCubit, ImplantCalculatorState>(
+      'existing implant + new crown: only the crown-tier toggle changes '
+      'the total (regression — it used to be silently ignored)',
+      build: () => cubit,
+      act: (c) {
+        c
+          ..selectCity(ServiceCity.ivanoFrankivsk)
+          ..answer('q1', 'one_tooth')
+          ..answer('a1', 'has_implant_needs_crown');
+        expect(c.state.result!.primaryTierLabel, isEmpty);
+        expect(c.state.result!.secondaryTierLabel, 'Рівень коронки');
+        final before = c.state.result!.eurAmount;
+        c.setSecondaryTier(2); // premium crown
+        expect(c.state.result!.eurAmount, isNot(before));
+      },
+    );
+
+    blocTest<ImplantCalculatorCubit, ImplantCalculatorState>(
       'replacing an existing implant is a consultation-only dead end '
       '(ТЗ §5.3)',
       build: () => cubit,
