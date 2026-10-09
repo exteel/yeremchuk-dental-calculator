@@ -1,46 +1,68 @@
 <!DOCTYPE html>
-<html>
+<html lang="uk">
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
+  <!-- Replaced by the `--base-href` argument provided to `flutter build`. -->
   <base href="/yeremchuk-dental-calculator/">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Розрахуйте орієнтовну вартість імплантації зубів у Yeremchuk Dental — Івано-Франківськ і Чернівці.">
 
-  <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="yeremchuk_dental_calculator">
+  <meta name="apple-mobile-web-app-title" content="Yeremchuk Dental">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
-
-  <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>yeremchuk_dental_calculator</title>
+  <title>Калькулятор імплантації — Yeremchuk Dental</title>
   <link rel="manifest" href="manifest.json">
+
+  <style>
+    html, body { margin: 0; background: #F5F7F8; }
+    /* Shown while the ~2.6 MB app downloads — without it the page stays
+       blank white for a few seconds on mobile and looks broken. */
+    #splash {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      background: #F5F7F8;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #4B5A63;
+      transition: opacity 0.3s ease;
+      z-index: 10;
+    }
+    #splash.hidden { opacity: 0; pointer-events: none; }
+    #splash img { width: 120px; height: auto; }
+    #splash .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid #D7EEEE;
+      border-top-color: #2EBCB5;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    #splash p { margin: 0; font-size: 15px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
 </head>
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js?v=fe597da26d" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
-
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
+  <div id="splash">
+    <img src="assets/assets/images/logo_mark.png" alt="Yeremchuk Dental">
+    <div class="spinner"></div>
+    <p>Завантажуємо калькулятор…</p>
+  </div>
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var splash = document.getElementById('splash');
+      splash.classList.add('hidden');
+      setTimeout(function () { splash.remove(); }, 400);
+    });
+  </script>
   <script src="flutter_bootstrap.js?v=fe597da26d" async></script>
 </body>
 </html>
