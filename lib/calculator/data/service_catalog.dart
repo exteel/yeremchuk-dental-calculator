@@ -519,8 +519,7 @@ abstract class ServiceCatalog {
       implantGroupByCode[implantCode] ?? ImplantGroup.standard;
 }
 
-/// Placeholder NBU EUR→UAH rate (ТЗ §4.1). A real implementation reads this
-/// daily from the NBU exchange-rate API; wire that in before launch — using
-/// a stale hardcoded rate here would silently misprice every EUR-denominated
-/// line the moment the real rate moves.
-const double nbuEurRateFallback = 45.0;
+/// NBU EUR→UAH rate (ТЗ §4.1), set by hand — last updated 2026-10-09. It is
+/// not fetched automatically, so the UAH equivalent drifts until this is
+/// updated again.
+const double nbuEurRateFallback = 50.1385;

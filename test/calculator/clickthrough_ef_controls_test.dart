@@ -6,6 +6,7 @@
 // independent formulas - nothing is read back from PricingEngine.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:yeremchuk_dental_calculator/calculator/data/service_catalog.dart';
 import 'package:yeremchuk_dental_calculator/calculator/screens/implant_calculator_screen.dart';
 import 'package:yeremchuk_dental_calculator/theme/app_colors.dart';
 
@@ -237,7 +238,7 @@ void expectToothTotal(
   final u = toothUah(city, i, temp: temp);
   final prem = toothImplPremium[i];
   expect(texts[0], eur(e), reason: '$city impl=$i crown=$j temp=$temp');
-  expect(texts[1], '≈ ${uah(round100(e * 45 + u))} за курсом НБУ');
+  expect(texts[1], '≈ ${uah(round100(e * nbuEurRateFallback + u))} за курсом НБУ');
   expect(pairsAfterApprox(texts), flat([
     ('${toothImplNames[i]} × 1 (імплант + встановлення)', eur(toothImplEur[i])),
     ('${supraName(prem)} × 1', eur(supraEur(prem))),
@@ -265,7 +266,7 @@ void expectArchTotal(WidgetTester t, int n, int i, int j, int jaws) {
   expect(texts[3], '+ ${eur(full - first)} + ${uah(6800 - 3400)}', reason: why);
   expect(texts[4], 'Загальна вартість до постійної конструкції');
   expect(texts[5], '${eur(full)} + ${uah(6800)}', reason: why);
-  expect(texts[6], '≈ ${uah(round100(full * 45 + 6800))} за курсом НБУ',
+  expect(texts[6], '≈ ${uah(round100(full * nbuEurRateFallback + 6800))} за курсом НБУ',
       reason: why);
   expect(pairsAfterApprox(texts), flat([
     ('${archImplNames[i]} × ${n * jaws}', eur(jaws * n * archImplEur[i])),
