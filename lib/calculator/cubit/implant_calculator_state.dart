@@ -1,4 +1,5 @@
 import 'package:yeremchuk_dental_calculator/calculator/data/service_catalog.dart';
+import 'package:yeremchuk_dental_calculator/calculator/data/calculator_graph.dart';
 import 'package:yeremchuk_dental_calculator/calculator/models/calculator_answer.dart';
 import 'package:yeremchuk_dental_calculator/calculator/models/calculator_result.dart';
 
@@ -54,9 +55,16 @@ class ImplantCalculatorState {
 
   /// Loose progress estimate — ТЗ UX §10 forbids a fixed "крок X із Y"
   /// label since question count varies, so this only ever backs a visual
-  /// bar, never printed text.
-  double get progressFraction =>
-      (history.length / 6).clamp(0.05, 1).toDouble();
+  /// bar, never printed text. Questions fill at most 70% (path length
+  /// varies by branch); the result screen then steps through its own
+  /// stages so the bar is full once the request is sent.
+  double get progressFraction {
+    if (currentStepId == CalculatorStep.result) {
+      if (consultationRequested) return 1;
+      return phoneSubmitted ? 0.9 : 0.8;
+    }
+    return (history.length / 6).clamp(0.05, 0.7).toDouble();
+  }
 
   ImplantCalculatorState copyWith({
     String? currentStepId,

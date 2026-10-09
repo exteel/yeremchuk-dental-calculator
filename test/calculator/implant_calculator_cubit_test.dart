@@ -199,6 +199,27 @@ void main() {
     );
 
     blocTest<ImplantCalculatorCubit, ImplantCalculatorState>(
+      'progress bar is full once the request is sent (regression — it '
+      'stopped at ~60-70% on the result screen)',
+      build: () => cubit,
+      act: (c) async {
+        c
+          ..selectCity(ServiceCity.ivanoFrankivsk)
+          ..answer('q1', 'few_2_3')
+          ..answer('b1', 'three');
+        expect(c.state.progressFraction, lessThanOrEqualTo(0.7));
+        c.answer('b2', 'all_removed');
+        final atResult = c.state.progressFraction;
+        c.submitPhone('0671234567');
+        final revealed = c.state.progressFraction;
+        await c.requestConsultation();
+        expect(atResult, greaterThan(0.7));
+        expect(revealed, greaterThan(atResult));
+        expect(c.state.progressFraction, 1);
+      },
+    );
+
+    blocTest<ImplantCalculatorCubit, ImplantCalculatorState>(
       'replacing an existing implant is a consultation-only dead end '
       '(ТЗ §5.3)',
       build: () => cubit,
