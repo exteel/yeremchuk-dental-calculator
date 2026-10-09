@@ -418,6 +418,9 @@ class _PhoneGate extends StatelessWidget {
             controller: controller,
             keyboardType: TextInputType.phone,
             style: const TextStyle(color: Colors.white),
+            onSubmitted: (value) {
+              if (value.trim().length >= 7) onSubmit();
+            },
             decoration: InputDecoration(
               labelText: 'Номер телефону',
               labelStyle: const TextStyle(color: Colors.white70),
@@ -438,18 +441,24 @@ class _PhoneGate extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.md),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                if (controller.text.trim().length >= 7) onSubmit();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.teal,
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-              ),
-              child: const Text('Показати розрахунок'),
-            ),
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: controller,
+            builder: (context, value, _) {
+              final canSubmit = value.text.trim().length >= 7;
+              return SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: canSubmit ? onSubmit : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.teal,
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppSpacing.md,
+                    ),
+                  ),
+                  child: const Text('Показати розрахунок'),
+                ),
+              );
+            },
           ),
         ],
       ),
