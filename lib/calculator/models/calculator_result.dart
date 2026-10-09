@@ -49,6 +49,8 @@ class CalculatorResult {
     this.archFullEur = 0,
     this.archFullUah = 0,
     this.noticeTexts = const [],
+    this.tempCrownAvailable = false,
+    this.sedationEstimate,
     this.isRoughEstimate = false,
     this.isIndividualOnly = false,
     this.individualMessage,
@@ -75,6 +77,12 @@ class CalculatorResult {
   final double archFirstStageUah;
   final double archFullEur;
   final double archFullUah;
+
+  /// ТЗ §4.3 — whether the "тимчасова коронка" option applies here.
+  final bool tempCrownAvailable;
+
+  /// ТЗ §4.7 — rough sedation range for this scenario; informational only.
+  final Money? sedationEstimate;
 
   /// ТЗ §10 informational notices tied to specific answers.
   final List<String> noticeTexts;

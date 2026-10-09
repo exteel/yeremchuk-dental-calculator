@@ -1,3 +1,4 @@
+import 'package:yeremchuk_dental_calculator/calculator/data/service_catalog.dart';
 import 'package:yeremchuk_dental_calculator/calculator/models/calculator_answer.dart';
 
 /// What kind of pricing-engine call the resolved answers need.
@@ -15,7 +16,7 @@ class ScenarioSpec {
   }) : kind = ScenarioKind.unit,
        archImplantsPerJaw = 0,
        bothJaws = false,
-       immediatelyPermanent = true,
+       implantGroup = ImplantGroup.standard,
        individualMessage = null,
        individualCta = null;
 
@@ -26,19 +27,22 @@ class ScenarioSpec {
        implantCount = 0,
        crownUnits = 0,
        tempCrownEligible = false,
-       immediatelyPermanent = true,
+       implantGroup = ImplantGroup.standard,
        individualMessage = null,
        individualCta = null;
 
-  const ScenarioSpec.existingImplant({required this.immediatelyPermanent})
-    : kind = ScenarioKind.existingImplant,
-      implantCount = 1,
-      crownUnits = 1,
-      tempCrownEligible = false,
-      archImplantsPerJaw = 0,
-      bothJaws = false,
-      individualMessage = null,
-      individualCta = null;
+  /// ТЗ §4.5 — implants already placed elsewhere; [implantGroup] is the
+  /// system the patient reported, not a tier they're choosing.
+  const ScenarioSpec.existingImplant({
+    required this.implantCount,
+    required this.crownUnits,
+    required this.implantGroup,
+  }) : kind = ScenarioKind.existingImplant,
+       tempCrownEligible = true,
+       archImplantsPerJaw = 0,
+       bothJaws = false,
+       individualMessage = null,
+       individualCta = null;
 
   const ScenarioSpec.individual({
     required String message,
@@ -49,7 +53,7 @@ class ScenarioSpec {
        tempCrownEligible = false,
        archImplantsPerJaw = 0,
        bothJaws = false,
-       immediatelyPermanent = true,
+       implantGroup = ImplantGroup.standard,
        individualMessage = message,
        individualCta = cta;
 
@@ -59,7 +63,7 @@ class ScenarioSpec {
   final bool tempCrownEligible;
   final int archImplantsPerJaw;
   final bool bothJaws;
-  final bool immediatelyPermanent;
+  final ImplantGroup implantGroup;
   final String? individualMessage;
   final String? individualCta;
 }
@@ -76,15 +80,39 @@ class ScenarioSpec {
       _ => (4, adjacentTeeth),
     };
 
+const _consultCta = 'Записатися на консультацію';
+
 const _replaceMessage =
     'Заміна наявного імпланта або коронки потребує індивідуальної оцінки '
     'стану кістки та конструкції.';
-const _replaceCta = 'Записатися на консультацію';
 
 const _existingConstructionMessage =
     'Оцінка наявної конструкції на імплантах потребує огляду та КТ — '
     'точну вартість заміни попередньо визначити неможливо.';
-const _existingConstructionCta = 'Записатися на консультацію';
+
+const _unknownSystemMessage =
+    'Щоб порахувати коронку на наявний імплант, потрібно знати його '
+    'систему. Візьміть паспорт імпланта на консультацію — лікар визначить '
+    'точну вартість.';
+
+ScenarioSpec _existingImplant(CalculatorAnswers a, int implants, int units) {
+  return switch (a['implant_system']) {
+    'standard' => ScenarioSpec.existingImplant(
+      implantCount: implants,
+      crownUnits: units,
+      implantGroup: ImplantGroup.standard,
+    ),
+    'premium' => ScenarioSpec.existingImplant(
+      implantCount: implants,
+      crownUnits: units,
+      implantGroup: ImplantGroup.premium,
+    ),
+    _ => const ScenarioSpec.individual(
+      message: _unknownSystemMessage,
+      cta: _consultCta,
+    ),
+  };
+}
 
 ScenarioSpec resolveScenario(CalculatorAnswers a) {
   // ---- Branch A: один зуб (§5.3) ----
@@ -92,22 +120,20 @@ ScenarioSpec resolveScenario(CalculatorAnswers a) {
     return switch (a['a1']) {
       'replace_implant_or_crown' => const ScenarioSpec.individual(
         message: _replaceMessage,
-        cta: _replaceCta,
+        cta: _consultCta,
       ),
-      'has_implant_needs_crown' => const ScenarioSpec.existingImplant(
-        immediatelyPermanent: true,
-      ),
+      'has_implant_needs_crown' => _existingImplant(a, 1, 1),
       _ => const ScenarioSpec.unit(implantCount: 1, crownUnits: 1),
     };
   }
 
   // ---- Branch B: 2–3 зуби поруч (§5.4) ----
   if (a.containsKey('b1')) {
-    if (a['b2'] == 'has_implants') {
-      return const ScenarioSpec.existingImplant(immediatelyPermanent: true);
-    }
     final count = switch (a['b1']) { 'two' => 2, 'three' => 3, _ => 3 };
     final (implants, units) = adjacentBridgeCounts(count);
+    if (a['b2'] == 'has_implants') {
+      return _existingImplant(a, implants, units);
+    }
     return ScenarioSpec.unit(implantCount: implants, crownUnits: units);
   }
 
@@ -120,11 +146,7 @@ ScenarioSpec resolveScenario(CalculatorAnswers a) {
       'seven_plus' => 7,
       _ => 6,
     };
-    if (count >= 7) {
-      // ТЗ §5.5: for 7+ compare a segmental bridge against a full-arch
-      // replacement — the full-arch path is the clinically dominant one,
-      // so the calculator defaults there and the result screen notes the
-      // bridge alternative for the doctor to weigh in on.
+    if (count >= 7 && a['c2'] != 'bridge_4') {
       return const ScenarioSpec.arch(archImplantsPerJaw: 6);
     }
     final (implants, units) = adjacentBridgeCounts(count);
@@ -152,7 +174,7 @@ ScenarioSpec resolveScenario(CalculatorAnswers a) {
     if (a['e1'] == 'existing_implant_construction') {
       return const ScenarioSpec.individual(
         message: _existingConstructionMessage,
-        cta: _existingConstructionCta,
+        cta: _consultCta,
       );
     }
     return const ScenarioSpec.arch(archImplantsPerJaw: 6);
@@ -163,7 +185,7 @@ ScenarioSpec resolveScenario(CalculatorAnswers a) {
     if (a['f1'] == 'existing_implant_construction') {
       return const ScenarioSpec.individual(
         message: _existingConstructionMessage,
-        cta: _existingConstructionCta,
+        cta: _consultCta,
       );
     }
     return const ScenarioSpec.arch(archImplantsPerJaw: 6, bothJaws: true);
@@ -194,8 +216,18 @@ List<String> resolveNotices(CalculatorAnswers a) {
   }
   if (a['c1'] == 'seven_plus') {
     notes.add(
-      'Для 7 і більше зубів поруч варто порівняти сегментний міст і повну '
-      'заміну ряду на консультації — нижче показано варіант повної щелепи.',
+      a['c2'] == 'bridge_4'
+          ? 'Розраховано для 7 зубів поруч. Якщо зубів більше, додається '
+                'вартість кожної наступної коронки.'
+          : 'Для 7 і більше зубів поруч варто порівняти сегментний міст і '
+                'повну заміну ряду на консультації — нижче показано варіант '
+                'повної щелепи.',
+    );
+  }
+  if (a.containsKey('e1') || a.containsKey('f1')) {
+    notes.add(
+      'Прості рухомі зуби при повнощелепному лікуванні видаляються без '
+      'доплати; складні — за показаннями.',
     );
   }
   return notes;

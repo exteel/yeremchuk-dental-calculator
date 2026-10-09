@@ -81,6 +81,20 @@ final Map<String, CalculatorQuestion> calculatorGraph = {
       ),
       QuestionOption('unknown', 'Не знаю'),
     ],
+    next: (a) => a['a1'] == 'has_implant_needs_crown'
+        ? 'implant_system'
+        : CalculatorStep.result,
+  ),
+
+  // ---- §4.5: система вже встановленого імпланта ---------------------------
+  'implant_system': CalculatorQuestion(
+    id: 'implant_system',
+    text: 'Яка система встановленого імпланта?',
+    options: const [
+      QuestionOption('standard', 'Neodent, Bauers Asper або подібна'),
+      QuestionOption('premium', 'Straumann, Nobel Biocare або подібна'),
+      QuestionOption('unknown', 'Не знаю'),
+    ],
     next: CalculatorQuestion.toResult,
   ),
 
@@ -106,7 +120,9 @@ final Map<String, CalculatorQuestion> calculatorGraph = {
       QuestionOption('has_implants', 'Імпланти вже встановлені'),
       QuestionOption('unknown', 'Не знаю'),
     ],
-    next: CalculatorQuestion.toResult,
+    next: (a) => a['b2'] == 'has_implants'
+        ? 'implant_system'
+        : CalculatorStep.result,
   ),
 
   // ---- §5.5: 4+ зубів поруч -------------------------------------------------

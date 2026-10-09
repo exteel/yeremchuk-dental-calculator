@@ -18,6 +18,12 @@ extension ServiceCityLabel on ServiceCity {
     ServiceCity.ivanoFrankivsk => 'IF',
     ServiceCity.chernivtsi => 'CV',
   };
+
+  /// ТЗ §6.3 — clinic hours shown next to the consultation CTA.
+  String get schedule => switch (this) {
+    ServiceCity.ivanoFrankivsk => 'Пн–Сб 08:00–20:00',
+    ServiceCity.chernivtsi => 'Пн–Пт 09:00–19:00, Сб 10:00–18:00',
+  };
 }
 
 enum Currency { eur, uah }

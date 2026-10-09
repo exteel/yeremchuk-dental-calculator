@@ -248,90 +248,102 @@ class PricingEngine {
   }) {
     return [
       for (final n in const [4, 6, 8])
-        TierCombo(
-          primaryTierIndex: n,
-          secondaryTierIndex: 0,
-          label: 'All-on-$n',
-          eurTotal: allOnScenario(
+        () {
+          final r = allOnScenario(
             city: city,
             implant: implant,
             archFinal: archFinal,
             implantsPerJaw: n,
             bothJaws: bothJaws,
-          ).archFullEur,
-          uahEquivalentTotal: allOnScenario(
-            city: city,
-            implant: implant,
-            archFinal: archFinal,
-            implantsPerJaw: n,
-            bothJaws: bothJaws,
-          ).uahEquivalentTotal,
-          isCurrent: n == currentSize,
-        ),
+          );
+          return TierCombo(
+            primaryTierIndex: n,
+            secondaryTierIndex: 0,
+            label: 'All-on-$n',
+            eurTotal: r.archFirstStageEur,
+            uahEquivalentTotal: uahEquivalent(
+              r.archFirstStageEur,
+              r.archFirstStageUah,
+            ),
+            isCurrent: n == currentSize,
+          );
+        }(),
     ];
   }
 
-  /// ТЗ §4.5 — patient already has an implant placed elsewhere.
+  /// ТЗ §4.5 — implants already placed elsewhere. Superstructures and the
+  /// extra abutment follow the existing implants, crowns follow the units;
+  /// scanning is once per stage.
   CalculatorResult existingImplantTotal({
     required ServiceCity city,
     required ImplantGroup group,
     required CatalogEntry crown,
+    int implantCount = 1,
+    int crownUnits = 1,
     bool immediatelyPermanent = true,
   }) {
     final supra = _supraForGroup(group);
     final scan = _amt(ServiceCatalog.scanBoth, city);
-    final crownPrice = _amt(crown, city);
-    final supraPrice = _amt(supra, city);
+    final supraEur = implantCount * _amt(supra, city);
+    final crownEur = crownUnits * _amt(crown, city);
+    final single = implantCount == 1 && crownUnits == 1;
+
+    final lines = <BreakdownLine>[
+      BreakdownLine(
+        '${supra.displayName} × $implantCount',
+        Money.fixed(Currency.eur, supraEur),
+      ),
+      BreakdownLine(
+        '${crown.displayName} × $crownUnits',
+        Money.fixed(Currency.eur, crownEur),
+      ),
+    ];
+
+    var eur = supraEur + crownEur;
+    var uah = scan;
 
     if (immediatelyPermanent) {
-      final eur = supraPrice + crownPrice;
-      final uah = scan;
-      return CalculatorResult(
-        kind: ResultKind.singleOrBridge,
-        clinicalSummary: 'Постійна коронка на наявний імплант',
-        eurAmount: eur,
-        uahComponentAmount: uah,
-        uahEquivalentTotal: uahEquivalent(eur, uah),
-        breakdown: [
-          BreakdownLine(supra.displayName, Money.fixed(Currency.eur, supraPrice)),
-          BreakdownLine(crown.displayName, Money.fixed(Currency.eur, crownPrice)),
-          BreakdownLine(
-            ServiceCatalog.scanBoth.displayName,
-            Money.fixed(Currency.uah, scan),
-          ),
-        ],
-        combos: const [],
-        primaryTierLabel: '',
-        secondaryTierLabel: 'Рівень коронки',
-      );
-    }
-
-    final extraAbutment = _extraAbutmentForGroup(group);
-    final tempCrownUah = _amt(ServiceCatalog.tempCrownUnit, city);
-    final eur = supraPrice + _amt(extraAbutment, city) + crownPrice;
-    final uah = scan + tempCrownUah + scan;
-    return CalculatorResult(
-      kind: ResultKind.singleOrBridge,
-      clinicalSummary: 'Тимчасова, потім постійна коронка на наявний імплант',
-      eurAmount: eur,
-      uahComponentAmount: uah,
-      uahEquivalentTotal: uahEquivalent(eur, uah),
-      breakdown: [
-        BreakdownLine(supra.displayName, Money.fixed(Currency.eur, supraPrice)),
+      lines.add(
         BreakdownLine(
-          extraAbutment.displayName,
-          Money.fixed(Currency.eur, _amt(extraAbutment, city)),
+          ServiceCatalog.scanBoth.displayName,
+          Money.fixed(Currency.uah, scan),
         ),
-        BreakdownLine(crown.displayName, Money.fixed(Currency.eur, crownPrice)),
+      );
+    } else {
+      final extraAbutment = _extraAbutmentForGroup(group);
+      final abutmentEur = implantCount * _amt(extraAbutment, city);
+      final tempUah = crownUnits * _amt(ServiceCatalog.tempCrownUnit, city);
+      eur += abutmentEur;
+      uah += tempUah + scan;
+      lines.addAll([
+        BreakdownLine(
+          '${extraAbutment.displayName} × $implantCount',
+          Money.fixed(Currency.eur, abutmentEur),
+        ),
+        BreakdownLine(
+          '${ServiceCatalog.tempCrownUnit.displayName} × $crownUnits',
+          Money.fixed(Currency.uah, tempUah),
+        ),
         BreakdownLine(
           'Сканування × 2 (тимчасова + постійна)',
           Money.fixed(Currency.uah, scan * 2),
         ),
-        BreakdownLine(
-          ServiceCatalog.tempCrownUnit.displayName,
-          Money.fixed(Currency.uah, tempCrownUah),
-        ),
-      ],
+      ]);
+    }
+
+    final what = single
+        ? 'коронка на наявний імплант'
+        : '$crownUnits ${_pluralCrowns(crownUnits)} на $implantCount '
+              'наявних імплантах';
+    return CalculatorResult(
+      kind: ResultKind.singleOrBridge,
+      clinicalSummary: immediatelyPermanent
+          ? 'Постійна $what'
+          : 'Тимчасова, потім постійна $what',
+      eurAmount: eur,
+      uahComponentAmount: uah,
+      uahEquivalentTotal: uahEquivalent(eur, uah),
+      breakdown: lines,
       combos: const [],
       primaryTierLabel: '',
       secondaryTierLabel: 'Рівень коронки',
@@ -364,8 +376,17 @@ class PricingEngine {
     return result;
   }
 
-  String _pluralImplants(int n) => n == 1 ? 'імплант' : 'імпланти';
-  String _pluralCrowns(int n) => n == 1 ? 'коронка' : 'коронок';
+  String _pluralImplants(int n) =>
+      _ukPlural(n, 'імплант', 'імпланти', 'імплантів');
+  String _pluralCrowns(int n) => _ukPlural(n, 'коронка', 'коронки', 'коронок');
+
+  String _ukPlural(int n, String one, String few, String many) {
+    final mod10 = n % 10;
+    final mod100 = n % 100;
+    if (mod10 == 1 && mod100 != 11) return one;
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
+    return many;
+  }
 }
 
 extension on ImplantSystem {

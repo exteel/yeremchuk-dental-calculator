@@ -49,7 +49,14 @@ class ImplantCalculatorCubit extends Cubit<ImplantCalculatorState> {
   }
 
   void answer(String questionId, String value) {
-    final updatedAnswers = {...state.answers, questionId: value};
+    // Only answers on the current path survive: going back and switching
+    // branch must drop the abandoned branch, or resolveScenario (which
+    // checks branches in a fixed order) would price the old one.
+    final updatedAnswers = {
+      for (final e in state.answers.entries)
+        if (state.history.contains(e.key)) e.key: e.value,
+      questionId: value,
+    };
     analytics.logEvent(CalculatorAnalyticsEvent.questionAnswered, {
       'question': questionId,
       'value': value,
@@ -67,12 +74,15 @@ class ImplantCalculatorCubit extends Cubit<ImplantCalculatorState> {
       });
     }
 
+    // The phone is deliberately kept (the patient already gave it), but a
+    // booking made for a previous scenario must not mark this one booked.
     emit(
       state.copyWith(
         currentStepId: nextStepId,
         history: [...state.history, state.currentStepId],
         answers: updatedAnswers,
         result: result ?? state.result,
+        consultationRequested: false,
       ),
     );
   }
@@ -99,6 +109,14 @@ class ImplantCalculatorCubit extends Cubit<ImplantCalculatorState> {
     _recompute();
   }
 
+  /// ТЗ §5.1 "Змінити місто" — reprices the same scenario for the other
+  /// city without walking back through the questions.
+  void changeCity(ServiceCity city) {
+    emit(state.copyWith(city: city));
+    _recompute();
+  }
+
+  // ignore: avoid_positional_boolean_parameters
   void toggleTempCrown(bool requested) {
     emit(state.copyWith(tempCrownRequested: requested));
     _recompute();
@@ -133,16 +151,16 @@ class ImplantCalculatorCubit extends Cubit<ImplantCalculatorState> {
         );
 
       case ScenarioKind.existingImplant:
-        final implant =
-            ServiceCatalog.singleToothImplantTiers[state.primaryTierIndex];
         final crown = ServiceCatalog.crownTiers[state.secondaryTierIndex];
         final r = engine.existingImplantTotal(
           city: city,
-          group: implant.group,
+          group: spec.implantGroup,
           crown: crown,
-          immediatelyPermanent: spec.immediatelyPermanent,
+          implantCount: spec.implantCount,
+          crownUnits: spec.crownUnits,
+          immediatelyPermanent: !state.tempCrownRequested,
         );
-        return _withContext(r, notices, rough);
+        return _withContext(r, spec, city, notices, rough);
 
       case ScenarioKind.unit:
         final implant =
@@ -167,7 +185,7 @@ class ImplantCalculatorCubit extends Cubit<ImplantCalculatorState> {
           tempCrown: tempCrown,
           combos: combos,
         );
-        return _withContext(r, notices, rough);
+        return _withContext(r, spec, city, notices, rough);
 
       case ScenarioKind.arch:
         final implant =
@@ -188,15 +206,18 @@ class ImplantCalculatorCubit extends Cubit<ImplantCalculatorState> {
           bothJaws: spec.bothJaws,
           combos: combos,
         );
-        return _withContext(r, notices, rough);
+        return _withContext(r, spec, city, notices, rough);
     }
   }
 
   CalculatorResult _withContext(
     CalculatorResult r,
+    ScenarioSpec spec,
+    ServiceCity city,
     List<String> notices,
     bool rough,
   ) {
+    final isArch = spec.kind == ScenarioKind.arch;
     return CalculatorResult(
       kind: r.kind,
       clinicalSummary: r.clinicalSummary,
@@ -212,6 +233,13 @@ class ImplantCalculatorCubit extends Cubit<ImplantCalculatorState> {
       archFullEur: r.archFullEur,
       archFullUah: r.archFullUah,
       noticeTexts: notices,
+      tempCrownAvailable: spec.tempCrownEligible,
+      sedationEstimate: engine.estimateSedationRange(
+        city: city,
+        implantCount: isArch ? state.archSize : spec.implantCount,
+        fullJaw: isArch,
+        bothJaws: spec.bothJaws,
+      ),
       isRoughEstimate: rough,
     );
   }
@@ -228,13 +256,20 @@ class ImplantCalculatorCubit extends Cubit<ImplantCalculatorState> {
     emit(state.copyWith(consultationSubmitting: true));
 
     final result = state.result!;
+    // Consultation-only results never showed tier choices, so the default
+    // tier indices would misreport what the patient picked.
+    final individual = result.isIndividualOnly;
     final payload = CalculatorLeadPayload(
       phone: state.phone,
       city: state.city!,
       answers: state.answers,
-      clinicalSummary: result.clinicalSummary,
-      finalImplantSystem: _currentImplantLabel(result),
-      finalCrownOrConstruction: _currentSecondaryLabel(result),
+      clinicalSummary: individual
+          ? 'Лише консультація: ${result.individualMessage ?? ''}'
+          : result.clinicalSummary,
+      finalImplantSystem: individual ? '—' : _currentImplantLabel(result),
+      finalCrownOrConstruction: individual
+          ? '—'
+          : _currentSecondaryLabel(result),
       eurAmount: result.kind == ResultKind.fullArch
           ? result.archFullEur
           : result.eurAmount,
@@ -258,6 +293,12 @@ class ImplantCalculatorCubit extends Cubit<ImplantCalculatorState> {
   }
 
   String _currentImplantLabel(CalculatorResult result) {
+    final system = state.answers['implant_system'];
+    if (system != null) {
+      return system == 'premium'
+          ? 'Наявний імплант (Straumann-група)'
+          : 'Наявний імплант (Neodent-група)';
+    }
     if (result.kind == ResultKind.fullArch) {
       return ServiceCatalog.fullArchImplantTiers[state.primaryTierIndex]
           .displayName;
@@ -274,11 +315,9 @@ class ImplantCalculatorCubit extends Cubit<ImplantCalculatorState> {
     return ServiceCatalog.crownTiers[state.secondaryTierIndex].displayName;
   }
 
-  bool _completed = false;
-
-  /// Best-effort abandonment signal (ТЗ §16-equivalent tracking).
+  /// Best-effort abandonment signal for analytics.
   void logAbandonedIfIncomplete() {
-    if (_completed || state.consultationRequested) return;
+    if (state.consultationRequested) return;
     analytics.logEvent(CalculatorAnalyticsEvent.abandoned, {
       'step': state.currentStepId,
     });
