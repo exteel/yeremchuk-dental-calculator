@@ -451,6 +451,10 @@ class _PhoneGate extends StatelessWidget {
                   onPressed: canSubmit ? onSubmit : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.teal,
+                    disabledBackgroundColor: AppColors.teal.withValues(
+                      alpha: 0.35,
+                    ),
+                    disabledForegroundColor: Colors.white70,
                     padding: const EdgeInsets.symmetric(
                       vertical: AppSpacing.md,
                     ),
